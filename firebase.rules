@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsProfile(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function protectedSubscriptionFields() {
+      return [
+        'lastPayPalEvent',
+        'paypalPlanId',
+        'paypalStatus',
+        'paypalSubscriptionId',
+        'subscribedAt',
+        'subscriptionStatus',
+        'subscriptionUpdatedAt'
+      ];
+    }
+
+    match /profiles/{uid} {
+      allow read: if ownsProfile(uid);
+      allow create: if ownsProfile(uid)
+        && !request.resource.data.keys().hasAny(protectedSubscriptionFields());
+      allow update: if ownsProfile(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedSubscriptionFields());
+      allow delete: if false;
+    }
+
+    match /paypalSubscriptions/{subscriptionId} {
+      allow read, write: if false;
+    }
+  }
+}
